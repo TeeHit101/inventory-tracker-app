@@ -4,23 +4,22 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Inventory Tracker</title>
+    <title>Lagerhantering</title>
 
     <style>
         :root {
             --primary: #2563eb;
-            --primary-hover: #1d4ed8;
+            --danger: #dc2626;
             --bg: #f5f7fa;
             --card: #ffffff;
             --border: #e5e7eb;
             --text: #111827;
             --muted: #6b7280;
-            --danger: #dc2626;
         }
 
         body {
             margin: 0;
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            font-family: system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
         }
@@ -36,7 +35,6 @@
         }
 
         .status {
-            font-size: 0.9rem;
             color: var(--muted);
             margin-bottom: 20px;
         }
@@ -45,12 +43,16 @@
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            gap: 10px;
+        }
+
+        .item-info {
+            flex: 1;
         }
 
         .item-name {
@@ -59,6 +61,34 @@
 
         .item-qty {
             color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        button {
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
         }
 
         .form {
@@ -67,10 +97,6 @@
             border-radius: 10px;
             padding: 16px;
             margin-top: 20px;
-        }
-
-        .form h3 {
-            margin-top: 0;
         }
 
         .form-row {
@@ -84,31 +110,6 @@
             padding: 10px;
             border: 1px solid var(--border);
             border-radius: 6px;
-            font-size: 14px;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        button {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        button:hover {
-            background: var(--primary-hover);
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
         }
 
         .message {
@@ -122,7 +123,6 @@
 
         .loading {
             color: var(--muted);
-            font-style: italic;
         }
 
         @media (max-width: 500px) {
@@ -142,9 +142,9 @@
         <div class="form">
             <h3>Lägg till vara</h3>
             <div class="form-row">
-                <input type="text" id="name" placeholder="Namn" required />
-                <input type="number" id="qty" placeholder="Antal" min="1" required />
-                <button id="saveBtn">Spara</button>
+                <input type="text" id="name" placeholder="Namn" />
+                <input type="number" id="qty" placeholder="Antal" min="1" />
+                <button class="btn-primary" id="addBtn">Spara</button>
             </div>
             <div id="message" class="message"></div>
         </div>
@@ -154,7 +154,6 @@
         const inventoryEl = document.getElementById("inventory");
         const statusEl = document.getElementById("status");
         const messageEl = document.getElementById("message");
-        const saveBtn = document.getElementById("saveBtn");
 
         function showMessage(text, isError = false) {
             messageEl.textContent = text;
@@ -165,27 +164,47 @@
             const card = document.createElement("div");
             card.className = "card";
 
+            const info = document.createElement("div");
+            info.className = "item-info";
+
             const name = document.createElement("div");
             name.className = "item-name";
             name.textContent = item.name;
 
             const qty = document.createElement("div");
             qty.className = "item-qty";
-            qty.textContent = `${item.quantity} st`;
+            qty.textContent = `Antal: ${item.quantity}`;
 
-            card.appendChild(name);
-            card.appendChild(qty);
+            info.appendChild(name);
+            info.appendChild(qty);
 
+            const actions = document.createElement("div");
+            actions.className = "actions";
+
+            // Update button
+            const editBtn = document.createElement("button");
+            editBtn.className = "btn-secondary";
+            editBtn.textContent = "Ändra";
+            editBtn.onclick = () => updateItem(item);
+
+            // Delete button
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "btn-danger";
+            deleteBtn.textContent = "Ta bort";
+            deleteBtn.onclick = () => deleteItem(item.name);
+
+            actions.appendChild(editBtn);
+            actions.appendChild(deleteBtn);
+
+            card.appendChild(info);
+            card.appendChild(actions);
             return card;
         }
 
         async function loadItems() {
             inventoryEl.innerHTML = '<div class="loading">Laddar...</div>';
-
             try {
                 const res = await fetch('/items');
-                if (!res.ok) throw new Error("Failed to fetch");
-
                 const data = await res.json();
                 statusEl.textContent = `Källa: ${data.source}`;
 
@@ -194,26 +213,19 @@
                     inventoryEl.appendChild(createItemCard(item));
                 });
 
-            } catch (err) {
-                inventoryEl.innerHTML = "";
+            } catch {
                 showMessage("Kunde inte ladda lagret.", true);
             }
         }
 
         async function addItem() {
-            const nameInput = document.getElementById("name");
-            const qtyInput = document.getElementById("qty");
-
-            const name = nameInput.value.trim();
-            const quantity = parseInt(qtyInput.value);
+            const name = document.getElementById("name").value.trim();
+            const quantity = parseInt(document.getElementById("qty").value);
 
             if (!name || quantity <= 0) {
                 showMessage("Fyll i giltigt namn och antal.", true);
                 return;
             }
-
-            saveBtn.disabled = true;
-            showMessage("Sparar...");
 
             try {
                 const res = await fetch('/items', {
@@ -222,22 +234,61 @@
                     body: JSON.stringify({ name, quantity })
                 });
 
-                if (!res.ok) throw new Error("Save failed");
+                if (!res.ok) throw new Error();
 
-                nameInput.value = "";
-                qtyInput.value = "";
-                showMessage("Varan sparad ✔");
+                showMessage("Varan tillagd ✔");
+                document.getElementById("name").value = "";
+                document.getElementById("qty").value = "";
+                loadItems();
 
-                await loadItems();
-
-            } catch (err) {
-                showMessage("Kunde inte spara varan.", true);
-            } finally {
-                saveBtn.disabled = false;
+            } catch {
+                showMessage("Kunde inte lägga till varan.", true);
             }
         }
 
-        saveBtn.addEventListener("click", addItem);
+        async function updateItem(item) {
+            const newQty = prompt(`Nytt antal för ${item.name}:`, item.quantity);
+            if (newQty === null) return;
+
+            const quantity = parseInt(newQty);
+            if (quantity < 0) return showMessage("Ogiltigt antal.", true);
+
+            try {
+                const res = await fetch(`/items/${encodeURIComponent(item.name)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quantity })
+                });
+
+                if (!res.ok) throw new Error();
+
+                showMessage("Antal uppdaterat ✔");
+                loadItems();
+
+            } catch {
+                showMessage("Kunde inte uppdatera.", true);
+            }
+        }
+
+        async function deleteItem(name) {
+            if (!confirm(`Ta bort ${name}?`)) return;
+
+            try {
+                const res = await fetch(`/items/${encodeURIComponent(name)}`, {
+                    method: 'DELETE'
+                });
+
+                if (!res.ok) throw new Error();
+
+                showMessage("Varan borttagen ✔");
+                loadItems();
+
+            } catch {
+                showMessage("Kunde inte ta bort varan.", true);
+            }
+        }
+
+        document.getElementById("addBtn").addEventListener("click", addItem);
 
         loadItems();
     </script>

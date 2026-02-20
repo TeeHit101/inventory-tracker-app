@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     gcc \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Kopiera requirements först för att utnyttja Docker-cache
@@ -16,8 +17,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Kopiera resten av koden
 COPY . .
-
-RUN ls -R /app
 
 # Exponera porten som Flask körs på
 EXPOSE 5000
