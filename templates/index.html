@@ -1,59 +1,244 @@
 <!DOCTYPE html>
-<html>
+<html lang="sv">
 
 <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Inventory Tracker</title>
+
     <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --muted: #6b7280;
+            --danger: #dc2626;
+        }
+
         body {
-            font-family: sans-serif;
-            padding: 20px;
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
         }
 
-        .item-card {
-            border: 1px solid #ccc;
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 24px;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+        }
+
+        .status {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .item-name {
+            font-weight: 600;
+        }
+
+        .item-qty {
+            color: var(--muted);
+        }
+
+        .form {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-top: 20px;
+        }
+
+        .form h3 {
+            margin-top: 0;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        input {
+            flex: 1;
             padding: 10px;
-            margin: 5px;
-            border-radius: 4px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
         }
 
-        .meta {
-            color: #666;
-            font-size: 0.8em;
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .message {
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+
+        .error {
+            color: var(--danger);
+        }
+
+        .loading {
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        @media (max-width: 500px) {
+            .form-row {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 
 <body>
-    <h1>Lagerhantering</h1>
-    <div id="status"></div>
-    <div id="inventory"></div>
+    <div class="container">
+        <h1>Lagerhantering</h1>
+        <div id="status" class="status"></div>
+        <div id="inventory"></div>
 
-    <h3>Lägg till vara</h3>
-    <input type="text" id="name" placeholder="Namn">
-    <input type="number" id="qty" placeholder="Antal">
-    <button onclick="addItem()">Spara</button>
+        <div class="form">
+            <h3>Lägg till vara</h3>
+            <div class="form-row">
+                <input type="text" id="name" placeholder="Namn" required />
+                <input type="number" id="qty" placeholder="Antal" min="1" required />
+                <button id="saveBtn">Spara</button>
+            </div>
+            <div id="message" class="message"></div>
+        </div>
+    </div>
 
     <script>
+        const inventoryEl = document.getElementById("inventory");
+        const statusEl = document.getElementById("status");
+        const messageEl = document.getElementById("message");
+        const saveBtn = document.getElementById("saveBtn");
+
+        function showMessage(text, isError = false) {
+            messageEl.textContent = text;
+            messageEl.className = "message " + (isError ? "error" : "");
+        }
+
+        function createItemCard(item) {
+            const card = document.createElement("div");
+            card.className = "card";
+
+            const name = document.createElement("div");
+            name.className = "item-name";
+            name.textContent = item.name;
+
+            const qty = document.createElement("div");
+            qty.className = "item-qty";
+            qty.textContent = `${item.quantity} st`;
+
+            card.appendChild(name);
+            card.appendChild(qty);
+
+            return card;
+        }
+
         async function loadItems() {
-            const res = await fetch('/items');
-            const data = await res.json();
-            document.getElementById('status').innerText = `Källa: ${data.source}`;
-            const container = document.getElementById('inventory');
-            container.innerHTML = data.items.map(i => `
-                <div class="item-card"><b>${i.name}</b>: ${i.quantity} st</div>
-            `).join('');
+            inventoryEl.innerHTML = '<div class="loading">Laddar...</div>';
+
+            try {
+                const res = await fetch('/items');
+                if (!res.ok) throw new Error("Failed to fetch");
+
+                const data = await res.json();
+                statusEl.textContent = `Källa: ${data.source}`;
+
+                inventoryEl.innerHTML = "";
+                data.items.forEach(item => {
+                    inventoryEl.appendChild(createItemCard(item));
+                });
+
+            } catch (err) {
+                inventoryEl.innerHTML = "";
+                showMessage("Kunde inte ladda lagret.", true);
+            }
         }
 
         async function addItem() {
-            const name = document.getElementById('name').value;
-            const quantity = document.getElementById('qty').value;
-            await fetch('/items', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, quantity })
-            });
-            loadItems();
+            const nameInput = document.getElementById("name");
+            const qtyInput = document.getElementById("qty");
+
+            const name = nameInput.value.trim();
+            const quantity = parseInt(qtyInput.value);
+
+            if (!name || quantity <= 0) {
+                showMessage("Fyll i giltigt namn och antal.", true);
+                return;
+            }
+
+            saveBtn.disabled = true;
+            showMessage("Sparar...");
+
+            try {
+                const res = await fetch('/items', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, quantity })
+                });
+
+                if (!res.ok) throw new Error("Save failed");
+
+                nameInput.value = "";
+                qtyInput.value = "";
+                showMessage("Varan sparad ✔");
+
+                await loadItems();
+
+            } catch (err) {
+                showMessage("Kunde inte spara varan.", true);
+            } finally {
+                saveBtn.disabled = false;
+            }
         }
+
+        saveBtn.addEventListener("click", addItem);
+
         loadItems();
     </script>
 </body>
